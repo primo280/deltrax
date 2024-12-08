@@ -1,115 +1,165 @@
-import Image from "next/image";
-import localFont from "next/font/local";
+import { useState, useEffect, useRef } from "react";
+import { knowledgeBase } from "../data/qa"; // Importer la base de connaissances
 
-const geistSans = localFont({
-  src: "./fonts/GeistVF.woff",
-  variable: "--font-geist-sans",
-  weight: "100 900",
-});
-const geistMono = localFont({
-  src: "./fonts/GeistMonoVF.woff",
-  variable: "--font-geist-mono",
-  weight: "100 900",
-});
+interface Message {
+  sender: "user" | "bot";
+  text: string;
+}
 
-export default function Home() {
+export default function Chat() {
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [input, setInput] = useState<string>("");
+
+  // Référence pour la boîte d'historique des messages
+  const chatContainerRef = useRef<HTMLDivElement>(null);
+
+  const sendMessage = async (message: string) => {
+    if (!message) return;
+
+    const userMessage: Message = { sender: "user", text: message };
+    setMessages((prev) => [...prev, userMessage]);
+
+    // Appeler l'API pour obtenir la réponse
+    try {
+      const response = await fetch("/api/send-message", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message }),
+      });
+
+      const data = await response.json();
+      const botMessage: Message = { sender: "bot", text: data.reply };
+
+      setMessages((prev) => [...prev, botMessage]);
+      setInput("");
+    } catch (error) {
+      console.error("Erreur lors de l'envoi du message :", error);
+    }
+  };
+
+  const handleQuestionClick = (question: string) => {
+    sendMessage(question);
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setInput(e.target.value);
+  };
+
+  const handleSendClick = () => {
+    sendMessage(input);
+  };
+
+  // Effet pour défiler vers le bas lorsqu'un nouveau message est ajouté
+  useEffect(() => {
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+    }
+  }, [messages]);
+
   return (
-    <div
-      className={`${geistSans.variable} ${geistMono.variable} grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]`}
-    >
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              pages/index.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
-
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+    <div style={{ maxWidth: "800px", margin: "0 auto", padding: "20px" }}>
+      <h1>Chatbot</h1>
+      <div
+        style={{
+          display: "flex",
+          gap: "20px",
+        }}
+      >
+        {/* Liste des questions */}
+        <div
+          style={{
+            flex: "1",
+            border: "1px solid #ccc",
+            borderRadius: "8px",
+            padding: "10px",
+            height: "400px",
+            overflowY: "scroll",
+          }}
+        >
+          <h3>Questions prédéfinies</h3>
+          <ul style={{ listStyleType: "none", padding: 0 }}>
+            {knowledgeBase.map((qa, index) => (
+              <li
+                key={index}
+                style={{
+                  padding: "10px",
+                  borderBottom: "1px solid #eee",
+                  cursor: "pointer",
+                  color: "#007BFF",
+                  textDecoration: "underline",
+                }}
+                onClick={() => handleQuestionClick(qa.question)}
+              >
+                {qa.question}
+              </li>
+            ))}
+          </ul>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
+
+        {/* Historique de chat */}
+        <div
+          ref={chatContainerRef} // Ajout de la référence pour le scroll automatique
+          style={{
+            flex: "2",
+            border: "1px solid #ccc",
+            borderRadius: "8px",
+            padding: "10px",
+            height: "400px",
+            overflowY: "scroll",
+          }}
         >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
+          {messages.map((msg, index) => (
+            <div
+              key={index}
+              style={{
+                textAlign: msg.sender === "user" ? "right" : "left",
+                margin: "10px 0",
+              }}
+            >
+              <span
+                style={{
+                  display: "inline-block",
+                  padding: "10px",
+                  borderRadius: "8px",
+                  backgroundColor: msg.sender === "user" ? "#DCF8C6" : "#F1F0F0",
+                }}
+              >
+                {msg.text}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Champ de saisie */}
+      <div style={{ marginTop: "10px" }}>
+        <input
+          type="text"
+          value={input}
+          onChange={handleInputChange}
+          placeholder="Posez une question"
+          style={{
+            width: "80%",
+            padding: "10px",
+            border: "1px solid #ccc",
+            borderRadius: "8px",
+          }}
+        />
+        <button
+          onClick={handleSendClick}
+          style={{
+            padding: "10px 20px",
+            marginLeft: "10px",
+            border: "none",
+            backgroundColor: "#007BFF",
+            color: "white",
+            borderRadius: "8px",
+            cursor: "pointer",
+          }}
         >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+          Envoyer
+        </button>
+      </div>
     </div>
   );
 }
